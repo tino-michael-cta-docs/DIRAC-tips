@@ -217,11 +217,8 @@ j.setExecutable("reconstruct.py", "--input *.simtel.gz")
     \begin{columns}
         \column{.05\textwidth}
         \column{.9\textwidth}
-        \begin{lstlisting}[basicstyle=\scriptsize,firstnumber=38]
-j.setInputSandbox(input_sandbox +
-    [input_file_on_SE_1,
-     input_file_on_SE_2,
-     ...])
+        \begin{lstlisting}[basicstyle=\scriptsize,firstnumber=37]
+j.setInputSandbox(input_sandbox + run_filelist)
 j.setExecutable("reconstruct.py", "--input *.simtel.gz")
         \end{lstlisting}
     \end{columns}
@@ -245,7 +242,7 @@ j.setExecutable("reconstruct.py", "--input *.simtel.gz")
     \begin{columns}
         \column{.05\textwidth}
         \column{.9\textwidth}
-        \begin{lstlisting}[basicstyle=\scriptsize,firstnumber=38]
+        \begin{lstlisting}[basicstyle=\scriptsize,firstnumber=37]
 # leave input sandbox as is
 j.setInputSandbox(input_sandbox)
 # loop over all files in the window
@@ -269,6 +266,7 @@ j.setExecutable("append_tables.py",
 
 
 \begin{frame}[fragile]{other possibly useful things}
+    {to get out of DIRAC within python}
     \begin{columns}
         \column{.05\textwidth}
         \column{.9\textwidth}
@@ -294,5 +292,25 @@ for id in running_ids:
         \end{lstlisting}
     \end{columns}
 \end{frame}
+
+
+\begin{frame}[fragile]{other possibly useful things}
+    {my simple sliding\_window implementation}
+    \begin{columns}
+        \column{.85\textwidth}
+
+        \begin{lstlisting}[basicstyle=\scriptsize,numbers=none]
+def sliding_window(my_list, window_size,
+                   step_size=None, start=0):
+    step_size = step_size or window_size
+    while start+window_size < len(my_list):
+        yield my_list[start:start+window_size]
+        start += step_size
+    else:
+        yield my_list[start:]
+        \end{lstlisting}
+    \end{columns}
+\end{frame}
+
 
 \end{document}
