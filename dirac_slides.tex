@@ -1,0 +1,298 @@
+\documentclass{beamer}
+
+
+\usepackage[title={ctapipe, the GRID and I},
+            shorttitle={ctapipe, the GRID and I},
+            meeting={}]{beamersetup}
+
+\usepackage{listings}
+\lstset{language=python,numbers=left,
+    morestring=[d][\color{darkred}]',
+    morestring=[d][\color{darkred}]",
+    morecomment=[l][\color{gray}\it]\#}
+
+\newcommand{\cli}[1]{%
+    \textbf{\rmfamily{\textit{#1}}}}
+
+\begin{document}
+\begin{frame}
+  \titlepage
+\end{frame}
+
+
+\begin{frame}{start off with some useful links}{(names are clickable)}
+    \begin{description}
+        \item[\href{https://forge.in2p3.fr/projects/cta_dirac/wiki/CTA-DIRAC_Users_Guide}
+                    {DIRC Users Guide}]
+            how to install dirac client, essential terminal commands and python methods
+            \bigskip
+        \item[\href{https://ccdcta-web.in2p3.fr/DIRAC/s:CTA/g:cta_user/?view=tabs&theme=
+                    Grey&url_state=1|*DIRAC.JobMonitor.classes.JobMonitor:,}
+                    {DIRAC JobMonitor}]
+            for your jobs submitted by DIRAC; has very limited ``resubmit'' capabilities
+            \bigskip
+        \item[\href{https://forge.in2p3.fr/projects/cta_dirac/wiki/
+                    CTA-DIRAC_MC_PROD3_Status}
+                    {MC Prod3 Status}]
+            description of which MC sets exist and how to obtain them
+    \end{description}
+\end{frame}
+
+
+\begin{frame}[fragile]{DIRAC from the command line}
+             {I assume you managed to set it up with the User Guide}
+    \scriptsize
+    first, define a bash function for convenience:
+    \vspace{-6pt}
+    \begin{columns}
+        \column{.05\textwidth}
+        \column{.9\textwidth}
+        \begin{lstlisting}[language=bash,basicstyle=\scriptsize]
+source-dirac (){
+    [[ "$PATH" =~ "dirac/pro/scripts" ]] || \
+        source ~/software/dirac/bashrc;
+    dirac-proxy-init
+}
+        \end{lstlisting}
+    \end{columns}
+
+    Retrieve a list of files of your GRID user and save it in a text file in the current
+    directory:\\
+    \cli{dirac-dms-user-lfns}
+    \medskip
+
+    upload a file to a specifiic storage element (SE):\\
+    \cli{dirac-dms-add-file /vo.cta.in2p3.fr/user/[initial]/[name]/test.txt test.txt CC-IN2P3-USER}
+    \medskip
+
+    download a file from the SE:\\
+    \cli{dirac-dms-get-file LFN:/vo.cta.in2p3.fr/user/[initial]/[name]/dir1/job.log}
+    \medskip
+
+    remove a directory and all files within:\\
+    \cli{dirac-dms-clean-directory /vo.cta.in2p3.fr/user/[initial]/[name]/dir}
+    \medskip
+
+    create a replica on another SE:\\\vspace{-4pt}%??
+    \cli{dirac-dms-replicate-lfn /vo.cta.in2p3.fr/user/[initial]/[name]/test.txt DESY-ZN-Disk}
+\end{frame}
+
+
+\begin{frame}{submitting jobs to the GRID with DIRAC}
+    A very convenient way to submit jobs to the GRID is through a python2 script.
+    All the dirac-specific classes are made available by sourcing the dirac bashrc.\\
+    Note: This bashrc will set the python2 (!) version that ships with it as the default
+    \rmfamily{\textit{python}}, so only source it in a dedicated ``submission terminal''.
+    It also messes up your \rmfamily{\textit{conda}} upgrade process. I thought I messed
+    up my installation a few times because of this...\\\bigskip
+    My actual submit script is on \href {https://github.com/tino-michael/tino_cta/blob/
+    master/dirac_submit.py}{\cli{my github}}.\\
+\end{frame}
+
+
+\begin{frame}[fragile]{submitting jobs to the GRID with DIRAC}
+             {the preamble}
+\begin{columns}
+\column{.1\textwidth}
+\column{.9\textwidth}
+\begin{lstlisting}
+from DIRAC.Core.Base import Script
+Script.parseCommandLine()
+from DIRAC.Interfaces.API.Dirac import Dirac
+from DIRAC.Interfaces.API.Job import Job
+dirac = Dirac()
+\end{lstlisting}
+\end{columns}
+\end{frame}
+
+
+\begin{frame}[fragile]{submitting jobs to the GRID with DIRAC}
+             {setting up the input sandbox}
+    sandbox uploads local files to the working directory of your GRID jobs
+    \begin{columns}
+        \column{.05\textwidth}
+        \column{.9\textwidth}
+        \begin{lstlisting}[basicstyle=\scriptsize,firstnumber=6]
+input_sandbox = [
+# files from current directory; will be available
+# in working directory (WD) during GRID-job
+"helper_functions.py", "reconstruct.py",
+
+# file in a different directory; will be in WD (not in sub-dir.)
+"snippets/append_tables.py",
+
+# directory in current directory; will be in WD
+"modules",
+
+# some directory anywhere on disk; will be (you guessed it) in WD
+"/local/home/tmichael/software/jeremie_cta/"
+"sap-cta-data-pipeline/datapipe/",
+
+# file from a GRID SE (note the LFN prefix); will be in WD
+"LFN:/vo.cta.in2p3.fr/user/t/tmichael/cta/bin/mr_filter/"
+"v3_1/mr_filter"]
+        \end{lstlisting}
+    \end{columns}
+\end{frame}
+
+
+\begin{frame}[fragile]{submitting jobs to the GRID with DIRAC}
+             {setting up a job object and submitting to the GRID}
+    \begin{columns}
+        \column{.05\textwidth}
+        \column{.9\textwidth}
+        \begin{lstlisting}[basicstyle=\scriptsize,firstnumber=24]
+for run_filelist in sliding_window(filelist, window_size=10):
+    j = Job()
+    # runtime in seconds times 8 (CPU normalisation factor)
+    j.setCPUTime(6 * 3600 * 8)
+    # set a nice and unique name for your job
+    j.setName('_'.join([channel, mode, run_token]))
+
+    # store results on the SE; supports wildcards in filenames
+    j.setOutputData(["output.log", "output_*.h5"],
+        # `outputPath` relative path starting from your [name]
+        outputSE=None, outputPath="output/path/")
+
+    # files to upload to WD from current machine and other SEs
+    j.setInputSandbox(input_sandbox)
+        \end{lstlisting}
+
+        \hspace{20pt}$\cdots$
+
+        \begin{lstlisting}[basicstyle=\scriptsize,firstnumber=54]
+    # submit the job to the GRID
+    print('Submission Result: {}\n'.format(
+          dirac.submit(j)['Value']))
+        \end{lstlisting}
+    \end{columns}
+\end{frame}
+
+
+\begin{frame}[fragile]{submitting jobs to the GRID with DIRAC}
+                      {defining the executable}
+    can be any command available in the WD, local scripts need to be added to the
+    input sandbox to be uploaded
+    \begin{columns}
+        \column{.05\textwidth}
+        \column{.9\textwidth}
+        \begin{lstlisting}[basicstyle=\scriptsize,firstnumber=38]
+# takes two strings, first is the executable to run,
+# second contains additional command line arguments
+j.setExecutable("reconstruct.py", command_line_arguments)
+        \end{lstlisting}
+    \end{columns}
+\end{frame}
+
+
+\begin{frame}[fragile]{submitting jobs to the GRID with DIRAC}
+                      {defining the input data we want to analyse}
+    naive idea is to `setInputData` and tell your executable to process them all:
+    \begin{columns}
+        \column{.05\textwidth}
+        \column{.9\textwidth}
+        \begin{lstlisting}[basicstyle=\scriptsize,firstnumber=38]
+j.setInputData(run_filelist)
+j.setExecutable("reconstruct.py", "--input *.simtel.gz")
+\end{lstlisting}
+    \end{columns}
+    sends the job to the GRID node where files actually are stored%
+    \pause
+    , but:
+    \begin{itemize}
+        \item might be impossible if too many files; no SE has all the data
+        \pause
+        \item running on only one/few files is not economical\\
+            e.g. there are 45k prod3b-paranal-north-20deg-[gamma,proton] files,\\
+            one file takes 10 min to run (too short),\\
+            produces 45k 100 kB output files (takes three days only to download)
+    \end{itemize}
+\end{frame}
+
+
+\begin{frame}[fragile]{submitting jobs to the GRID with DIRAC}
+                      {defining the input data we want to analyse}
+    or add it to InputSandbox instead:
+    \begin{columns}
+        \column{.05\textwidth}
+        \column{.9\textwidth}
+        \begin{lstlisting}[basicstyle=\scriptsize,firstnumber=38]
+j.setInputSandbox(input_sandbox +
+    [input_file_on_SE_1,
+     input_file_on_SE_2,
+     ...])
+j.setExecutable("reconstruct.py", "--input *.simtel.gz")
+        \end{lstlisting}
+    \end{columns}
+    sends your jobs anywhere and pulls data at the beginning to your WD\pause
+    , but:
+    \begin{itemize}
+        \item job scheduler does not seem to be aware of "InputSandbox-getting"
+        \pause
+        \item \textrightarrow\ if too many jobs try to download files in parallel,
+            interface breaks
+        \pause
+        \item \textrightarrow\ jobs idle around for 3 h and then get killed
+        \pause
+        \item local WD has limited size, download too much and you run out of space
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{submitting jobs to the GRID with DIRAC}
+                      {defining the input data we want to analyse}
+    what actually works for me
+    \begin{columns}
+        \column{.05\textwidth}
+        \column{.9\textwidth}
+        \begin{lstlisting}[basicstyle=\scriptsize,firstnumber=38]
+# leave input sandbox as is
+j.setInputSandbox(input_sandbox)
+# loop over all files in the window
+for run_file in run_filelist:
+    # wait for a randomly up to five minutes before starting
+    sleep = random.randint(0, 5*60)
+    j.setExecutable('sleep', str(sleep))
+    # consecutively downloads the data files,
+    j.setExecutable('dirac-dms-get-file', "LFN:"+run_file)
+    # ... processes them and deletes them again
+    j.setExecutable("reconstruct.py",
+        "--input " + basename(run_file))
+    j.setExecutable('rm', basename(run_file))
+# merge the output files
+j.setExecutable("append_tables.py",
+    " ".join(run_filelist)
+        \end{lstlisting}
+    \end{columns}
+\end{frame}
+
+
+
+\begin{frame}[fragile]{other possibly useful methods}
+    \begin{columns}
+        \column{.05\textwidth}
+        \column{.9\textwidth}
+        \begin{lstlisting}[basicstyle=\scriptsize,numbers=none]
+# if there is a temporary problem at one site, switch it off
+j.setBannedSites(['LCG.IN2P3-CC.fr'])
+
+# your large-scale submission was interrupted?
+# check which jobs are already there
+running_ids = []
+for status in ["Waiting", "Running"]:
+    running_ids += dirac.selectJobs(status=status,
+                                    owner="tmichael")['Value']
+running_tokens = []
+for id in running_ids:
+    # with many jobs, this could take a minute or two
+    jobname = dirac.attributes(id)["Value"]["JobName"]
+    running_tokens.append(jobname)
+
+
+
+        \end{lstlisting}
+    \end{columns}
+\end{frame}
+
+
+
+\end{document}
