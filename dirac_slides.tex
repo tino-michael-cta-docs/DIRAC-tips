@@ -29,7 +29,8 @@
         \item[\href{https://ccdcta-web.in2p3.fr/DIRAC/s:CTA/g:cta_user/?view=tabs&theme=
                     Grey&url_state=1|*DIRAC.JobMonitor.classes.JobMonitor:,}
                     {DIRAC JobMonitor}]
-            for your jobs submitted by DIRAC; has very limited ``resubmit'' capabilities
+            for your jobs submitted by DIRAC; has very limited ``resubmit'' capabilities,
+            can look at logs, stdout/stderr and output files on-the-fly
             \bigskip
         \item[\href{https://forge.in2p3.fr/projects/cta_dirac/wiki/
                     CTA-DIRAC_MC_PROD3_Status}
@@ -267,7 +268,7 @@ j.setExecutable("append_tables.py",
 
 
 
-\begin{frame}[fragile]{other possibly useful methods}
+\begin{frame}[fragile]{other possibly useful things}
     \begin{columns}
         \column{.05\textwidth}
         \column{.9\textwidth}
@@ -287,12 +288,11 @@ for id in running_ids:
     jobname = dirac.attributes(id)["Value"]["JobName"]
     running_tokens.append(jobname)
 
-
-
+# list of available storage elements:
+"CC-IN2P3-USER", "DESY-ZN-USER", "CEA-USER", "LAPP-USER",
+"CYF-STORM-USER", "CNAF-USER", "LPNHE-USER"
         \end{lstlisting}
     \end{columns}
 \end{frame}
-
-
 
 \end{document}
